@@ -1,0 +1,6 @@
+pyproject.toml
+moneyfoward_analysis.egg-info/PKG-INFO
+moneyfoward_analysis.egg-info/SOURCES.txt
+moneyfoward_analysis.egg-info/dependency_links.txt
+moneyfoward_analysis.egg-info/requires.txt
+moneyfoward_analysis.egg-info/top_level.txt

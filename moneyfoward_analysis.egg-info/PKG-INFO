@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: moneyfoward-analysis
+Version: 0.1.0
+Summary: A Streamlit dashboard for analyzing personal finance data.
+Requires-Dist: pandas
+Requires-Dist: streamlit

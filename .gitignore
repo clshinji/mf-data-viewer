@@ -1,0 +1,15 @@
+# Environments
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS generated files
+.DS_Store
+
+# Generated data files
+mf_all_data.csv
+
+# Streamlit cache
+.streamlit/
