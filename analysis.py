@@ -4,16 +4,63 @@ import os
 import streamlit as st
 import altair as alt
 from datetime import datetime
+import re
 
 @st.cache_data
 def get_data():
     output_filename = 'mf_all_data.csv'
-    if not os.path.exists(output_filename):
-        st.error(f"{output_filename} not found. Please run the initial script to generate it.")
-        return None
     
-    df = pd.read_csv(output_filename)
-    # Basic data cleaning and preparation
+    regenerate_csv = True
+    if os.path.exists(output_filename):
+        try:
+            temp_df = pd.read_csv(output_filename, nrows=0)
+            if '集計期間' in temp_df.columns:
+                regenerate_csv = False
+        except pd.errors.EmptyDataError:
+            regenerate_csv = True
+
+    if not regenerate_csv:
+        st.info(f"既存の {output_filename} を読み込みます。")
+        df = pd.read_csv(output_filename)
+    else:
+        st.info(f"{output_filename} を再生成します...")
+        csv_dir = 'csv'
+        csv_pattern = os.path.join(csv_dir, '*.csv')
+        csv_files = glob.glob(csv_pattern)
+        csv_files.sort()
+
+        if not csv_files:
+            st.error("csvディレクトリにファイルが見つかりません。")
+            return None
+
+        df_list = []
+        for file in csv_files:
+            try:
+                df_chunk = pd.read_csv(file, encoding='cp932')
+                match = re.search(r'(\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2})', os.path.basename(file))
+                if match:
+                    df_chunk['集計期間'] = match.group(1)
+                else:
+                    df_chunk['集計期間'] = '不明'
+                df_list.append(df_chunk)
+            except Exception as e:
+                st.warning(f"ファイル {file} の読み込み中にエラー: {e}")
+
+        if not df_list:
+            st.error("有効なデータが読み込めませんでした。")
+            return None
+
+        first_df_cols = df_list[0].columns.tolist()
+        cols = ['集計期間'] + [col for col in first_df_cols if col != '集計期間']
+        
+        reordered_df_list = []
+        for df_item in df_list:
+             reordered_df_list.append(df_item.reindex(columns=cols))
+        
+        df = pd.concat(reordered_df_list, ignore_index=True)
+        df.to_csv(output_filename, index=False, encoding='utf-8')
+        st.success(f"新しい {output_filename} が生成されました。")
+
     df = df[(df['計算対象'] == 1) & (df['振替'] == 0)]
     df['日付'] = pd.to_datetime(df['日付'])
     df = df[pd.to_numeric(df['金額（円）'], errors='coerce').notnull()]
@@ -28,25 +75,21 @@ def main():
     if df is None:
         return
 
-    # --- Sidebar Filters ---
     st.sidebar.header('フィルター')
-    min_date = df['日付'].min().date()
-    max_date = df['日付'].max().date()
+    
+    # --- New: Filter by '集計期間' ---
+    period_options = ['全期間'] + sorted(df['集計期間'].unique().tolist(), reverse=True)
+    selected_period = st.sidebar.selectbox('集計期間を選択', period_options)
 
-    start_date = st.sidebar.date_input('開始日', min_date, min_value=min_date, max_value=max_date)
-    end_date = st.sidebar.date_input('終了日', max_date, min_value=min_date, max_value=max_date)
-
-    if start_date > end_date:
-        st.sidebar.error('エラー: 終了日は開始日以降に設定してください。')
-        return
-
-    # --- Data Filtering ---
-    filtered_df = df[(df['日付'].dt.date >= start_date) & (df['日付'].dt.date <= end_date)]
-    title_period = f"{start_date.strftime('%Y/%m/%d')} - {end_date.strftime('%Y/%m/%d')}"
+    if selected_period == '全期間':
+        filtered_df = df
+        title_period = '全期間'
+    else:
+        filtered_df = df[df['集計期間'] == selected_period]
+        title_period = selected_period
 
     st.header(f'{title_period}の概要')
 
-    # Separate income and expenses
     income_df = filtered_df[filtered_df['金額（円）'] > 0]
     expenses_df = filtered_df[filtered_df['金額（円）'] < 0].copy()
     expenses_df['金額（円）'] = expenses_df['金額（円）'].abs()
@@ -60,7 +103,6 @@ def main():
     col2.metric("総支出", f"{total_expense:,.0f} 円")
     col3.metric("収支", f"{balance:,.0f} 円")
 
-    # --- Category Pie Chart ---
     st.header('支出の割合')
     category_expenses = expenses_df.groupby('大項目')['金額（円）'].sum().sort_values(ascending=False).reset_index()
     if not category_expenses.empty:
@@ -76,7 +118,6 @@ def main():
     else:
         st.write("この期間の支出データはありません。")
 
-    # --- Drill-down Analysis ---
     st.header('ドリルダウン分析')
     if not expenses_df.empty:
         major_categories = ['すべてのカテゴリ'] + list(expenses_df['大項目'].unique())
@@ -95,21 +136,6 @@ def main():
         st.dataframe(drilldown_df[['日付', '内容', '金額（円）', '中項目']].sort_values('日付', ascending=False), use_container_width=True)
     else:
         st.write("表示する支出データはありません。")
-
-    # --- Time Series Analysis ---
-    st.header('期間内の推移')
-    time_unit = 'Y' # Default to year
-    time_delta = end_date - start_date
-    if time_delta.days <= 90:
-        time_unit = 'D' # Day
-    elif time_delta.days <= 365 * 2:
-        time_unit = 'M' # Month
-
-    if not filtered_df.empty:
-        income_ts = income_df.set_index('日付').resample(time_unit)['金額（円）'].sum()
-        expense_ts = expenses_df.set_index('日付').resample(time_unit)['金額（円）'].sum()
-        ts_chart_data = pd.DataFrame({'収入': income_ts, '支出': expense_ts}).fillna(0)
-        st.bar_chart(ts_chart_data)
 
 if __name__ == "__main__":
     main()
