@@ -1,0 +1,12 @@
+[project]
+name = "moneyfoward-analysis"
+version = "0.1.0"
+description = "A Streamlit dashboard for analyzing personal finance data."
+dependencies = [
+    "pandas",
+    "streamlit",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
