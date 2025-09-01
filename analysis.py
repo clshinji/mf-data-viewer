@@ -127,35 +127,60 @@ def main():
     col3.metric("収支", f"{balance:,.0f} 円")
 
     st.header('支出の割合')
-    category_expenses = expenses_df.groupby('大項目')['金額（円）'].sum().sort_values(ascending=False).reset_index()
-    if not category_expenses.empty:
-        pie_chart = alt.Chart(category_expenses).mark_arc(innerRadius=50).encode(
-            theta=alt.Theta(field="金額（円）", type="quantitative"),
-            color=alt.Color(field="大項目", type="nominal", title="カテゴリ"),
-            tooltip=['大項目', '金額（円）']
-        ).properties(
-            width=500,
-            height=350
+    if not expenses_df.empty:
+        all_major_categories = list(expenses_df['大項目'].unique())
+        
+        # デフォルトで除外したい項目があれば、ここにリストアップ
+        default_excluded = [] 
+        default_selected_categories = [cat for cat in all_major_categories if cat not in default_excluded]
+
+        selected_pie_categories = st.multiselect(
+            '円グラフに含める大項目を選択',
+            all_major_categories,
+            default=default_selected_categories
         )
-        st.altair_chart(pie_chart, use_container_width=True)
+
+        if selected_pie_categories:
+            pie_chart_df = expenses_df[expenses_df['大項目'].isin(selected_pie_categories)]
+            category_expenses = pie_chart_df.groupby('大項目')['金額（円）'].sum().sort_values(ascending=False).reset_index()
+
+            if not category_expenses.empty:
+                pie_chart = alt.Chart(category_expenses).mark_arc(innerRadius=50).encode(
+                    theta=alt.Theta(field="金額（円）", type="quantitative"),
+                    color=alt.Color(field="大項目", type="nominal", title="カテゴリ"),
+                    tooltip=['大項目', '金額（円）']
+                ).properties(
+                    width=500,
+                    height=350
+                )
+                st.altair_chart(pie_chart, use_container_width=True)
+            else:
+                st.write("選択されたカテゴリの支出データはありません。")
+        else:
+            st.write("円グラフに表示する大項目を1つ以上選択してください。")
     else:
         st.write("この期間の支出データはありません。")
 
     st.header('ドリルダウン分析')
     if not expenses_df.empty:
-        major_categories = ['すべてのカテゴリ'] + list(expenses_df['大項目'].unique())
-        selected_major_category = st.selectbox('分析したい大項目を選択', major_categories)
+        major_categories = list(expenses_df['大項目'].unique())
+        selected_major_categories = st.multiselect('分析したい大項目を選択（複数選択可）', major_categories)
 
-        if selected_major_category != 'すべてのカテゴリ':
-            drilldown_df = expenses_df[expenses_df['大項目'] == selected_major_category]
+        if selected_major_categories:
+            drilldown_df = expenses_df[expenses_df['大項目'].isin(selected_major_categories)]
+            title_categories = ", ".join(selected_major_categories)
+            st.subheader(f'「{title_categories}」の中項目別支出')
         else:
             drilldown_df = expenses_df
+            st.subheader('すべての中項目別支出')
 
-        st.subheader(f'「{selected_major_category}」の中項目別支出')
         sub_category_expenses = drilldown_df.groupby('中項目')['金額（円）'].sum().sort_values(ascending=False)
         st.bar_chart(sub_category_expenses)
 
-        st.write(f"「{selected_major_category}」の明細データ")
+        if selected_major_categories:
+            st.write(f"「{title_categories}」の明細データ")
+        else:
+            st.write("すべての明細データ")
         st.dataframe(drilldown_df[['日付', '内容', '金額（円）', '中項目']].sort_values('日付', ascending=False), use_container_width=True)
     else:
         st.write("表示する支出データはありません。")
