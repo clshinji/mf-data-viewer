@@ -126,26 +126,35 @@ def main():
     col2.metric("総支出", f"{total_expense:,.0f} 円")
     col3.metric("収支", f"{balance:,.0f} 円")
 
-    st.header('支出の割合')
-    if not expenses_df.empty:
-        all_major_categories = list(expenses_df['大項目'].unique())
-        
-        # デフォルトで除外したい項目があれば、ここにリストアップ
-        default_excluded = [] 
-        default_selected_categories = [cat for cat in all_major_categories if cat not in default_excluded]
+    # --- 分析モード選択 ---
+    st.sidebar.markdown("---")
+    analysis_mode = st.sidebar.selectbox('分析対象を選択', ['支出', '収入'])
+
+    if analysis_mode == '支出':
+        analysis_df = expenses_df
+        subject_title = "支出"
+    else:
+        analysis_df = income_df
+        subject_title = "収入"
+
+    # --- 内訳分析 --- 
+    st.header(f'{subject_title}の割合')
+    if not analysis_df.empty:
+        all_major_categories = list(analysis_df['大項目'].unique())
+        default_selected_categories = all_major_categories # デフォルトで全て選択
 
         selected_pie_categories = st.multiselect(
-            '円グラフに含める大項目を選択',
+            f'円グラフに含める{subject_title}の大項目を選択',
             all_major_categories,
             default=default_selected_categories
         )
 
         if selected_pie_categories:
-            pie_chart_df = expenses_df[expenses_df['大項目'].isin(selected_pie_categories)]
-            category_expenses = pie_chart_df.groupby('大項目')['金額（円）'].sum().sort_values(ascending=False).reset_index()
+            pie_chart_df = analysis_df[analysis_df['大項目'].isin(selected_pie_categories)]
+            category_data = pie_chart_df.groupby('大項目')['金額（円）'].sum().sort_values(ascending=False).reset_index()
 
-            if not category_expenses.empty:
-                pie_chart = alt.Chart(category_expenses).mark_arc(innerRadius=50).encode(
+            if not category_data.empty:
+                pie_chart = alt.Chart(category_data).mark_arc(innerRadius=50).encode(
                     theta=alt.Theta(field="金額（円）", type="quantitative"),
                     color=alt.Color(field="大項目", type="nominal", title="カテゴリ"),
                     tooltip=['大項目', '金額（円）']
@@ -155,27 +164,27 @@ def main():
                 )
                 st.altair_chart(pie_chart, use_container_width=True)
             else:
-                st.write("選択されたカテゴリの支出データはありません。")
+                st.write(f"選択されたカテゴリの{subject_title}データはありません。")
         else:
-            st.write("円グラフに表示する大項目を1つ以上選択してください。")
+            st.write(f"円グラフに表示する{subject_title}の大項目を1つ以上選択してください。")
     else:
-        st.write("この期間の支出データはありません。")
+        st.write(f"この期間の{subject_title}データはありません。")
 
-    st.header('ドリルダウン分析')
-    if not expenses_df.empty:
-        major_categories = list(expenses_df['大項目'].unique())
-        selected_major_categories = st.multiselect('分析したい大項目を選択（複数選択可）', major_categories)
+    st.header(f'{subject_title}のドリルダウン分析')
+    if not analysis_df.empty:
+        major_categories = list(analysis_df['大項目'].unique())
+        selected_major_categories = st.multiselect(f'分析したい{subject_title}の大項目を選択（複数選択可）', major_categories)
 
         if selected_major_categories:
-            drilldown_df = expenses_df[expenses_df['大項目'].isin(selected_major_categories)]
+            drilldown_df = analysis_df[analysis_df['大項目'].isin(selected_major_categories)]
             title_categories = ", ".join(selected_major_categories)
-            st.subheader(f'「{title_categories}」の中項目別支出')
+            st.subheader(f'「{title_categories}」の中項目別{subject_title}')
         else:
-            drilldown_df = expenses_df
-            st.subheader('すべての中項目別支出')
+            drilldown_df = analysis_df
+            st.subheader(f'すべての中項目別{subject_title}')
 
-        sub_category_expenses = drilldown_df.groupby('中項目')['金額（円）'].sum().sort_values(ascending=False)
-        st.bar_chart(sub_category_expenses)
+        sub_category_data = drilldown_df.groupby('中項目')['金額（円）'].sum().sort_values(ascending=False)
+        st.bar_chart(sub_category_data)
 
         if selected_major_categories:
             st.write(f"「{title_categories}」の明細データ")
@@ -183,7 +192,7 @@ def main():
             st.write("すべての明細データ")
         st.dataframe(drilldown_df[['日付', '内容', '金額（円）', '中項目']].sort_values('日付', ascending=False), use_container_width=True)
     else:
-        st.write("表示する支出データはありません。")
+        st.write(f"表示する{subject_title}データはありません。")
 
 if __name__ == "__main__":
     main()
