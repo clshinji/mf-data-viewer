@@ -13,3 +13,11 @@ mf_all_data.csv
 
 # Streamlit cache
 .streamlit/
+
+# Local data
+csv/*
+
+# in development
+mf_viewer/
+viewer/
+temp/
