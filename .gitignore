@@ -1,23 +1,76 @@
-# Environments
-.venv/
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-# Generated data files
-mf_all_data.csv
+# Logs
+*.log
+logs/
 
-# Streamlit cache
+# Streamlit
 .streamlit/
 
-# Local data
+# Generated data files (contains personal financial data)
+mf_all_data.csv
+
+# Personal financial data (MoneyForward exports)
 csv/*
 
-# in development
+# Development directories
 mf_viewer/
 viewer/
 temp/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
