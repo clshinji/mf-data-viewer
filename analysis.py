@@ -6,31 +6,28 @@ import altair as alt
 from datetime import datetime
 import re
 
+# データ取得と前処理をキャッシュする関数
+# force_regenerate が True の場合、またはファイルが存在しない場合にのみ実行される
 @st.cache_data
-def get_data():
+def get_data(force_regenerate=False):
     output_filename = 'mf_all_data.csv'
-    
-    regenerate_csv = True
-    if os.path.exists(output_filename):
-        try:
-            temp_df = pd.read_csv(output_filename, nrows=0)
-            if '集計期間' in temp_df.columns:
-                regenerate_csv = False
-        except pd.errors.EmptyDataError:
-            regenerate_csv = True
+    csv_dir = 'csv'
 
-    if not regenerate_csv:
-        st.info(f"既存の {output_filename} を読み込みます。")
-        df = pd.read_csv(output_filename)
-    else:
-        st.info(f"{output_filename} を再生成します...")
-        csv_dir = 'csv'
+    # 再生成が必要かどうかを判断
+    regenerate = force_regenerate or not os.path.exists(output_filename)
+
+    if regenerate:
+        st.info(f"`{csv_dir}` ディレクトリのCSVから {output_filename} を生成・更新します...")
+        if not os.path.isdir(csv_dir):
+            st.error(f"ディレクトリ '{csv_dir}' が見つかりません。")
+            return None
+            
         csv_pattern = os.path.join(csv_dir, '*.csv')
         csv_files = glob.glob(csv_pattern)
         csv_files.sort()
 
         if not csv_files:
-            st.error("csvディレクトリにファイルが見つかりません。")
+            st.error(f"{csv_dir} ディレクトリにCSVファイルが見つかりません。")
             return None
 
         df_list = []
@@ -60,7 +57,18 @@ def get_data():
         df = pd.concat(reordered_df_list, ignore_index=True)
         df.to_csv(output_filename, index=False, encoding='utf-8')
         st.success(f"新しい {output_filename} が生成されました。")
+    else:
+        st.info(f"既存の {output_filename} を読み込みます。")
 
+    # ファイルからデータを読み込む
+    try:
+        df = pd.read_csv(output_filename)
+    except FileNotFoundError:
+        # このケースは基本的には発生しないはずだが、念のため
+        st.error(f"{output_filename} が見つかりません。")
+        return None
+
+    # データの後処理
     df = df[(df['計算対象'] == 1) & (df['振替'] == 0)]
     df['日付'] = pd.to_datetime(df['日付'])
     df = df[pd.to_numeric(df['金額（円）'], errors='coerce').notnull()]
@@ -71,13 +79,28 @@ def main():
     st.set_page_config(layout="wide")
     st.title('家計分析ダッシュボード')
 
-    df = get_data()
+    output_filename = 'mf_all_data.csv'
+
+    st.sidebar.header('データ操作')
+    force_regenerate = st.sidebar.button('`mf_all_data.csv` を生成・更新')
+
+    # ファイルが存在せず、再生成ボタンも押されていない場合はメッセージを表示
+    if not os.path.exists(output_filename) and not force_regenerate:
+        st.info('データファイル `mf_all_data.csv` が見つかりません。サイドバーの「`mf_all_data.csv` を生成・更新」ボタンを押して、`csv/` ディレクトリからデータを生成してください。')
+        return
+
+    # ボタンが押されたらキャッシュをクリアして get_data を再実行
+    if force_regenerate:
+        st.cache_data.clear()
+
+    df = get_data(force_regenerate=force_regenerate)
+    
     if df is None:
+        # get_data 内でエラーが発生した場合
         return
 
     st.sidebar.header('フィルター')
     
-    # --- New: Filter by '集計期間' ---
     period_options = ['全期間'] + sorted(df['集計期間'].unique().tolist(), reverse=True)
     selected_period = st.sidebar.selectbox('集計期間を選択', period_options)
 
